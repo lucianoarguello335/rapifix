@@ -27,7 +27,7 @@ export async function createContact(data: {
   } as never);
 
   if (error) {
-    return { error: error.message };
+    return { error: "No se pudo enviar el mensaje. Intentá de nuevo más tarde." };
   }
 
   return { success: true };

@@ -39,7 +39,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/mi-plan") ||
     pathname.startsWith("/configuracion");
 
-  const isUserRoute = pathname.startsWith("/favoritos");
+  const isUserRoute = pathname.startsWith("/favoritos") ||
+    pathname.startsWith("/valoraciones");
 
   const isAdminRoute = pathname.startsWith("/admin");
 
@@ -51,9 +52,15 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Role-based protection
+  // Role-based protection: query user_roles table (not user_metadata)
   if (user && (isDashboardRoute || isAdminRoute)) {
-    const role = user.user_metadata?.role as string | undefined;
+    const { data: userRole } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id)
+      .single();
+
+    const role = userRole?.role as string | undefined;
 
     if (isDashboardRoute && role !== "professional" && role !== "admin") {
       const url = request.nextUrl.clone();
@@ -75,7 +82,13 @@ export async function updateSession(request: NextRequest) {
       pathname.startsWith("/recuperar-clave");
 
     if (isAuthRoute) {
-      const role = user.user_metadata?.role as string | undefined;
+      const { data: userRole } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+      const role = userRole?.role as string | undefined;
       const url = request.nextUrl.clone();
       url.pathname = role === "professional" ? "/mi-perfil" : "/";
       return NextResponse.redirect(url);

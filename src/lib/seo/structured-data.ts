@@ -54,6 +54,10 @@ export function generateProfileJsonLd({
   return jsonLd;
 }
 
+export function safeJsonLdStringify(data: Record<string, unknown>): string {
+  return JSON.stringify(data).replace(/</g, "\\u003c");
+}
+
 function getPriceRangeSymbol(
   priceRange: string | null | undefined
 ): string | undefined {

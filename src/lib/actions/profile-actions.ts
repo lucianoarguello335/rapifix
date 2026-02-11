@@ -3,6 +3,47 @@
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+function sanitizeError(message: string): string {
+  if (message.includes("duplicate key")) {
+    return "Ya existe un registro con estos datos";
+  }
+  if (message.includes("violates foreign key")) {
+    return "Referencia inválida. Verificá los datos ingresados.";
+  }
+  if (message.includes("row-level security")) {
+    return "No tenés permisos para realizar esta acción";
+  }
+  return "Ocurrió un error. Intentá de nuevo más tarde.";
+}
+
+function validateFile(file: File): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+    return "Tipo de archivo no permitido. Usá JPG, PNG, WebP o GIF.";
+  }
+  if (file.size > MAX_FILE_SIZE) {
+    return "El archivo es demasiado grande. Máximo 5MB.";
+  }
+  return null;
+}
+
+function getSafeFileExtension(file: File): string {
+  const typeToExt: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  return typeToExt[file.type] || "jpg";
+}
+
 export async function createProfile(data: {
   firstName: string;
   lastName: string;
@@ -73,7 +114,7 @@ export async function createProfile(data: {
   } as never);
 
   if (profileError) {
-    return { error: profileError.message };
+    return { error: sanitizeError(profileError.message) };
   }
 
   // Insert neighborhoods
@@ -87,7 +128,7 @@ export async function createProfile(data: {
     .insert(neighborhoodInserts as never);
 
   if (neighborhoodError) {
-    return { error: neighborhoodError.message };
+    return { error: sanitizeError(neighborhoodError.message) };
   }
 
   // Calculate completeness
@@ -149,7 +190,7 @@ export async function updateProfile(data: {
     .eq("id", user.id);
 
   if (error) {
-    return { error: error.message };
+    return { error: sanitizeError(error.message) };
   }
 
   // Recalculate completeness
@@ -197,7 +238,7 @@ export async function updateProfileNeighborhoods(neighborhoodIds: number[]) {
     .insert(inserts as never);
 
   if (error) {
-    return { error: error.message };
+    return { error: sanitizeError(error.message) };
   }
 
   revalidatePath("/mi-perfil");
@@ -220,7 +261,12 @@ export async function uploadProfilePhoto(formData: FormData) {
     return { error: "No se seleccionó ningún archivo" };
   }
 
-  const fileExt = file.name.split(".").pop();
+  const validationError = validateFile(file);
+  if (validationError) {
+    return { error: validationError };
+  }
+
+  const fileExt = getSafeFileExtension(file);
   const filePath = `${user.id}/profile.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
@@ -228,7 +274,7 @@ export async function uploadProfilePhoto(formData: FormData) {
     .upload(filePath, file, { upsert: true });
 
   if (uploadError) {
-    return { error: uploadError.message };
+    return { error: sanitizeError(uploadError.message) };
   }
 
   const {
@@ -241,7 +287,7 @@ export async function uploadProfilePhoto(formData: FormData) {
     .eq("id", user.id);
 
   if (updateError) {
-    return { error: updateError.message };
+    return { error: sanitizeError(updateError.message) };
   }
 
   revalidatePath("/mi-perfil");
@@ -266,6 +312,11 @@ export async function addWorkPhoto(formData: FormData) {
     return { error: "No se seleccionó ningún archivo" };
   }
 
+  const validationError = validateFile(file);
+  if (validationError) {
+    return { error: validationError };
+  }
+
   // Check photo limit
   const { count } = await supabase
     .from("work_photos")
@@ -285,7 +336,7 @@ export async function addWorkPhoto(formData: FormData) {
     };
   }
 
-  const fileExt = file.name.split(".").pop();
+  const fileExt = getSafeFileExtension(file);
   const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
@@ -293,7 +344,7 @@ export async function addWorkPhoto(formData: FormData) {
     .upload(fileName, file);
 
   if (uploadError) {
-    return { error: uploadError.message };
+    return { error: sanitizeError(uploadError.message) };
   }
 
   const {
@@ -308,7 +359,7 @@ export async function addWorkPhoto(formData: FormData) {
   } as never);
 
   if (insertError) {
-    return { error: insertError.message };
+    return { error: sanitizeError(insertError.message) };
   }
 
   revalidatePath("/mi-perfil");
@@ -351,7 +402,7 @@ export async function deleteWorkPhoto(photoId: string) {
     .eq("profile_id", user.id);
 
   if (error) {
-    return { error: error.message };
+    return { error: sanitizeError(error.message) };
   }
 
   revalidatePath("/mi-perfil");
