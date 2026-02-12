@@ -11,7 +11,7 @@ import { ProfileCertifications } from "@/components/profile/profile-certificatio
 import { ProfileContactCard } from "@/components/profile/profile-contact-card";
 import { ShareButtons } from "@/components/profile/share-buttons";
 import { Separator } from "@/components/ui/separator";
-import { generateProfileJsonLd } from "@/lib/seo/structured-data";
+import { generateProfileJsonLd, safeJsonLdStringify } from "@/lib/seo/structured-data";
 
 async function getProfile(slug: string) {
   const supabase = await createClient();
@@ -147,7 +147,7 @@ export default async function ProfesionalPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLdStringify(jsonLd) }}
       />
 
       <div className="container mx-auto px-4 py-8 pb-24 lg:pb-8">
